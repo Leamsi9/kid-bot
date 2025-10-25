@@ -14,6 +14,9 @@ let isSpeaking = false;
 let deferredPrompt;
 let installTriggered = false;
 
+let audioContext;
+let gainNode;
+
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
@@ -193,16 +196,13 @@ function drawFace(jawOpen = 0) {
     // Nose/sensor panel
     const noseY = headY + headHeight * 0.55;
     const noseSize = scale * 0.08;
-    ctx.fillStyle = '#1a202c';
+    ctx.fillStyle = noseLit ? '#00ff00' : '#ff4444';
     ctx.beginPath();
-    ctx.arc(cx, noseY, noseSize, 0, Math.PI * 2);
+    ctx.arc(cx, noseY, noseSize * 0.8, 0, Math.PI * 2);
     ctx.fill();
-    
-    // Small LED on nose
-    ctx.fillStyle = noseLit ? '#00ff00' : '#4444ff';
-    ctx.beginPath();
-    ctx.arc(cx, noseY, noseSize * 0.4, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.strokeStyle = '#1a202c';
+    ctx.lineWidth = scale * 0.008;
+    ctx.stroke();
     
     // Mouth - large speaker grille
     const mouthY = headY + headHeight * 0.72;
@@ -372,6 +372,15 @@ function handleCanvasClick(event) {
     const antennaTop = antennaY - antennaLength;
     const antennaRadius = scale * 0.03;
     
+    // Check if click on nose first, before install prompt
+    const noseY = cy + scale * 0.045;
+    const noseRadius = scale * 0.12;
+    const dist = Math.sqrt(Math.pow(x - cx, 2) + Math.pow(y - noseY, 2));
+    if (dist <= noseRadius) {
+        toggleConnection();
+        return;
+    }
+    
     // Trigger install on first click
     if (!installTriggered && deferredPrompt) {
         deferredPrompt.prompt();
@@ -382,13 +391,6 @@ function handleCanvasClick(event) {
             deferredPrompt = null;
         });
         installTriggered = true;
-    }
-    
-    // Check if click on antenna
-    if ((x >= antennaX1 - antennaRadius && x <= antennaX1 + antennaRadius && y >= antennaY - scale * 0.1 && y <= antennaY) ||
-        (x >= antennaX2 - antennaRadius && x <= antennaX2 + antennaRadius && y >= antennaY - scale * 0.1 && y <= antennaY)) {
-        toggleConnection();
-        return;
     }
     
     // Otherwise, toggle text
