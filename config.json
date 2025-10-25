@@ -1,0 +1,41 @@
+{
+  "model": {
+    "provider": "groq",
+    "name": "llama-3.1-8b-instant"
+  },
+  "model2": {
+    "provider": "ollama",
+    "name": "llama3:instruct"
+  },
+  "model3": {
+    "provider": "api",
+    "name": "gemini-2.5-flash"
+  },
+  "stt": {
+    "provider": "server"
+  },
+  "tts": {
+    "provider": "browser"
+  },
+  "voice": {
+    "rate": 1.0,
+    "pitch": 0.15,
+    "volume": 1.0,
+    "preferred_voices": [
+      "robot",
+      "computer",
+      "synthesizer",
+      "electronic",
+      "tts",
+      "dalek",
+      "mechanical",
+      "zira",
+      "male",
+      "daniel",
+      "alex",
+      "fred",
+      "tom",
+      "paul"
+    ]
+  }
+}

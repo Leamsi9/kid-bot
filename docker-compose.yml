@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  ai-kid-bot:
+    build: .
+    runtime: nvidia
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/data
+    network_mode: host
