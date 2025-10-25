@@ -25,7 +25,7 @@ class LLM:
             genai.configure(api_key=api_key)
             self.api_type = "gemini"
             
-            with open('brain/prompt.txt') as f:
+            with open('brain/sys-prompt.txt') as f:
                 self.system = f.read().strip()
             
             # Configure generation settings for kid-friendly, concise responses
@@ -50,13 +50,13 @@ class LLM:
             self.client = AsyncOpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
             self.api_type = "groq"
             
-            with open('brain/prompt.txt') as f:
+            with open('brain/sys-prompt.txt') as f:
                 self.system = f.read().strip()
         elif provider == "ollama":
             try:
                 from ollama import AsyncClient
                 self.client = AsyncClient()
-                with open('brain/prompt.txt') as f:
+                with open('brain/sys-prompt.txt') as f:
                     self.system = f.read().strip()
             except ImportError:
                 raise ValueError("Ollama not installed. Install with: pip install ollama")

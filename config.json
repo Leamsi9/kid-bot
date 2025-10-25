@@ -19,7 +19,7 @@
   },
   "voice": {
     "rate": 1.0,
-    "pitch": 0.15,
+    "pitch": 0.4,
     "volume": 1.0,
     "preferred_voices": [
       "robot",

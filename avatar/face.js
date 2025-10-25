@@ -1,12 +1,38 @@
 const canvas = document.getElementById('face');
 const ctx = canvas.getContext('2d');
 const textDiv = document.getElementById('text');
+textDiv.style.display = 'none';
 const statusDiv = document.getElementById('status');
+const installBtn = document.getElementById('installBtn');
 
 let noseLit = false;
 
-let audioContext;
-let gainNode;
+let showText = false;
+
+let isSpeaking = false;
+
+let deferredPrompt;
+let installTriggered = false;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    console.log('Install prompt ready');
+});
+
+// Handle install button
+installBtn.addEventListener('click', () => {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                console.log('User accepted the install');
+            }
+            deferredPrompt = null;
+            installBtn.style.display = 'none';
+        });
+    }
+});
 
 function initAudio() {
     if (!audioContext) {
@@ -22,17 +48,13 @@ function initAudio() {
 let voiceConfig = {rate: 0.35, pitch: 0.15, volume: 1.0, preferred_voices: ['robot', 'computer', 'synthesizer', 'electronic', 'tts', 'dalek', 'mechanical', 'zira', 'male', 'daniel', 'alex', 'fred', 'tom', 'paul']};
 let sttConfig = {provider: 'server'};
 let ttsConfig = {provider: 'browser'};
-fetch('/config.json').then(response => response.json()).then(config => {
-    if (config.voice) {
-        voiceConfig = config.voice;
-    }
-    if (config.stt) {
-        sttConfig = config.stt;
-    }
-    if (config.tts) {
-        ttsConfig = config.tts;
-    }
-}).catch(() => {
+fetch('/config.json').then(response => response.json())
+        .then(config => {
+            ttsConfig = config.tts || {provider: 'browser'};
+            voiceConfig = config.voice || {rate: 1, pitch: 1, volume: 1, preferred_voices: []};
+            sttConfig = config.stt || {provider: 'browser'};
+            console.log('Config loaded:', {tts: ttsConfig, voice: voiceConfig, stt: sttConfig});
+        }).catch(() => {
     console.log('Config not loaded, using defaults');
 });
 
@@ -58,6 +80,28 @@ function drawFace(jawOpen = 0) {
     const scale = Math.min(w, h);
     
     ctx.clearRect(0, 0, w, h);
+    
+    // Draw antenna
+    const antennaY = cy - scale * 0.35;
+    const antennaLength = scale * 0.15;
+    
+    ctx.strokeStyle = showText ? '#ff0' : '#888'; // Light up if text enabled
+    ctx.lineWidth = scale * 0.02;
+    ctx.beginPath();
+    ctx.moveTo(cx - scale * 0.1, antennaY);
+    ctx.lineTo(cx - scale * 0.1, antennaY - antennaLength);
+    ctx.moveTo(cx + scale * 0.1, antennaY);
+    ctx.lineTo(cx + scale * 0.1, antennaY - antennaLength);
+    ctx.stroke();
+    
+    // Antenna balls
+    ctx.fillStyle = showText ? '#ff0' : '#888';
+    ctx.beginPath();
+    ctx.arc(cx - scale * 0.1, antennaY - antennaLength, scale * 0.03, 0, Math.PI * 2);
+    ctx.arc(cx + scale * 0.1, antennaY - antennaLength, scale * 0.03, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Rest of the face...
     
     // Detailed robot head
     const headWidth = scale * 0.85;
@@ -148,7 +192,7 @@ function drawFace(jawOpen = 0) {
     
     // Nose/sensor panel
     const noseY = headY + headHeight * 0.55;
-    const noseSize = scale * 0.04;
+    const noseSize = scale * 0.08;
     ctx.fillStyle = '#1a202c';
     ctx.beginPath();
     ctx.arc(cx, noseY, noseSize, 0, Math.PI * 2);
@@ -278,6 +322,7 @@ if (sttConfig.provider === 'browser') {
         recognition.interimResults = false;
         recognition.lang = 'en-US';
         recognition.onresult = (event) => {
+            if (isSpeaking) return; // Ignore input while speaking
             const transcript = event.results[event.results.length - 1][0].transcript;
             console.log('STT result:', transcript);
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -286,7 +331,7 @@ if (sttConfig.provider === 'browser') {
         };
         recognition.onend = () => {
             console.log('STT ended');
-            if (micReady && sttConfig.provider === 'browser') {
+            if (micReady && sttConfig.provider === 'browser' && !isSpeaking) {
                 recognition.start();
             }
         };
@@ -315,35 +360,41 @@ function handleCanvasClick(event) {
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    
-    // Check if click is on nose
     const w = canvas.width;
     const h = canvas.height;
     const cx = w / 2;
     const cy = h / 2;
     const scale = Math.min(w, h);
-    const headWidth = scale * 0.85;
-    const headHeight = scale * 0.9;
-    const headX = cx - headWidth / 2;
-    const headY = cy - headHeight / 2;
-    const noseY = headY + headHeight * 0.55;
-    const noseSize = scale * 0.04;
+    const antennaY = cy - scale * 0.35;
+    const antennaLength = scale * 0.15;
+    const antennaX1 = cx - scale * 0.1;
+    const antennaX2 = cx + scale * 0.1;
+    const antennaTop = antennaY - antennaLength;
+    const antennaRadius = scale * 0.03;
     
-    const dist = Math.sqrt((x - cx) ** 2 + (y - noseY) ** 2);
-    if (dist <= noseSize) {
+    // Trigger install on first click
+    if (!installTriggered && deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                console.log('User accepted the install');
+            }
+            deferredPrompt = null;
+        });
+        installTriggered = true;
+    }
+    
+    // Check if click on antenna
+    if ((x >= antennaX1 - antennaRadius && x <= antennaX1 + antennaRadius && y >= antennaY - scale * 0.1 && y <= antennaY) ||
+        (x >= antennaX2 - antennaRadius && x <= antennaX2 + antennaRadius && y >= antennaY - scale * 0.1 && y <= antennaY)) {
         toggleConnection();
+        return;
     }
-}
-
-function toggleConnection() {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        console.log('Disconnecting...');
-        ws.close();
-    } else {
-        console.log('Connecting...');
-        ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws');
-        setupWebSocket();
-    }
+    
+    // Otherwise, toggle text
+    showText = !showText;
+    drawFace();
+    textDiv.style.display = showText ? 'block' : 'none';
 }
 
 function setupWebSocket() {
@@ -376,6 +427,7 @@ function setupWebSocket() {
                     
                     console.log('Audio processing started');
                     processor.onaudioprocess = (e) => {
+                        if (isSpeaking) return; // Skip processing while speaking
                         const inputData = e.inputBuffer.getChannelData(0);
                         // Convert float32 [-1, 1] to int16 PCM
                         const pcm16 = new Int16Array(inputData.length);
@@ -422,11 +474,11 @@ function setupWebSocket() {
                     return;
                 }
                 if (data.text) {
-                textDiv.textContent = data.text;
-                if (ttsConfig.provider === 'browser') {
-                    speakText(data.text);
+                    if (showText) textDiv.textContent = data.text;
+                    if (ttsConfig.provider === 'browser') {
+                        speakText(data.text);
+                    }
                 }
-            }
             if (data.audio) {
                 console.log('Received audio, length:', data.audio.length);
                 const audio = new Audio('data:audio/wav;base64,' + data.audio);
@@ -434,6 +486,7 @@ function setupWebSocket() {
                 audio.muted = false;
                 let animationInterval;
                 audio.onplay = () => {
+                    isSpeaking = true;
                     console.log('Audio started playing');
                     // Mouth animation while audio plays
                     animationInterval = setInterval(() => {
@@ -442,6 +495,7 @@ function setupWebSocket() {
                     }, 150);
                 };
                 audio.onended = () => {
+                    isSpeaking = false;
                     console.log('Audio ended');
                     clearInterval(animationInterval);
                     drawFace(0);
@@ -494,13 +548,14 @@ function speakText(text) {
     }
     
     // Set speech parameters
-    utterance.rate = voiceConfig.rate;
+    utterance.rate = Math.min(2, voiceConfig.rate);
     utterance.pitch = voiceConfig.pitch;
-    utterance.volume = voiceConfig.volume;
+    utterance.volume = Math.min(1, voiceConfig.volume);
     
     // Animate mouth while speaking
     let animationInterval;
     utterance.onstart = () => {
+        isSpeaking = true;
         // Simple mouth animation while speaking
         let jawOpen = 0;
         animationInterval = setInterval(() => {
@@ -510,6 +565,7 @@ function speakText(text) {
     };
     
     utterance.onend = () => {
+        isSpeaking = false;
         clearInterval(animationInterval);
         drawFace(0);
         currentUtterance = null;
@@ -518,6 +574,7 @@ function speakText(text) {
     
     utterance.onerror = (err) => {
         console.error('Speech error:', err);
+        isSpeaking = false;
         clearInterval(animationInterval);
         drawFace(0);
         currentUtterance = null;
